@@ -8,6 +8,7 @@ from lp_utils import (
     FluentState, encode_state, decode_state,
 )
 from my_planning_graph import PlanningGraph
+import itertools as itt
 
 
 class AirCargoProblem(Problem):
@@ -58,7 +59,21 @@ class AirCargoProblem(Problem):
             :return: list of Action objects
             '''
             loads = []
-            # TODO create all load ground actions from the domain Load action
+
+            for c,p,a in itt.product(self.cargos, self.planes, self.airports):
+                precond_pos = _expressions('''
+                    At({c}, {a})
+                    At({p}, {a})
+                '''.format(c=c, p=p, a=a))
+                precond_neg = []
+                effect_add = [expr("In({c}, {p})".format(c=c, p=p))]
+                effect_rem = [expr("At({c}, {a})".format(c=c, a=a))]
+                action_expression = expr('Load({c}, {p}, {a})'.format(c=c, p=p, a=a))
+                action = Action(action_expression,
+                                [precond_pos, precond_neg],
+                                [effect_add, effect_rem])
+                loads.append(action)
+
             return loads
 
         def unload_actions():
@@ -186,10 +201,99 @@ def air_cargo_p1() -> AirCargoProblem:
 
 
 def air_cargo_p2() -> AirCargoProblem:
-    # TODO implement Problem 2 definition
-    pass
+    cargos = 'C1 C2 C3'.split()
+    planes = 'P1 P2 P3'.split()
+    airports = 'JFK SFO ATL'.split()
+    init_pos = _expressions('''
+        At(C1, SFO)
+        At(C2, JFK)
+        At(C3, ATL)
+        At(P1, SFO)
+        At(P2, JFK)
+        At(P3, ATL)
+    ''')
+    init_neg = _expressions('''
+        At(C1, JFK)
+        At(C1, ATL)
+        At(C2, SFO)
+        At(C2, ATL)
+        At(C3, JFK)
+        At(C3, SFO)
+        In(C1, P1)
+        In(C1, P2)
+        In(C1, P3)
+        In(C2, P1)
+        In(C2, P2)
+        In(C2, P3)
+        In(C3, P1)
+        In(C3, P2)
+        In(C3, P3)
+        At(P1, JFK)
+        At(P1, ATL)
+        At(P2, SFO)
+        At(P2, ATL)
+        At(P3, JFK)
+        At(P3, SFO)
+    ''')
+    init = FluentState(init_pos, init_neg)
+    goal = _expressions('''
+        At(C1, JFK)
+        At(C2, SFO)
+        At(C3, SFO)
+    ''')
+    return AirCargoProblem(cargos, planes, airports, init, goal)
 
 
 def air_cargo_p3() -> AirCargoProblem:
-    # TODO implement Problem 3 definition
-    pass
+    cargos = 'C1 C2 C3 C4'.split()
+    planes = 'P1 P2'.split()
+    airports = 'JFK SFO ATL ORD'.split()
+    init_pos = _expressions('''
+        At(C1, SFO)
+        At(C2, JFK)
+        At(C3, ATL)
+        At(C4, ORD)
+        At(P1, SFO)
+        At(P2, JFK)
+    ''')
+    init_neg = _expressions('''
+        At(C1, JFK)
+        At(C1, ATL)
+        At(C1, ORD)
+        At(C2, SFO)
+        At(C2, ATL)
+        At(C2, ORD)
+        At(C3, JFK)
+        At(C3, SFO)
+        At(C3, ORD)
+        At(C4, JFK)
+        At(C4, SFO)
+        At(C4, ATL)
+        In(C1, P1)
+        In(C1, P2)
+        In(C2, P1)
+        In(C2, P2)
+        In(C3, P1)
+        In(C3, P2)
+        In(C4, P1)
+        In(C4, P2)
+        At(P1, JFK)
+        At(P1, ATL)
+        At(P1, ORD)
+        At(P2, SFO)
+        At(P2, ATL)
+        At(P2, ORD)
+    ''')
+    init = FluentState(init_pos, init_neg)
+    goal = _expressions('''
+        At(C1, JFK)
+        At(C3, JFK)
+        At(C2, SFO)
+        At(C4, SFO)
+    ''')
+    return AirCargoProblem(cargos, planes, airports, init, goal)
+
+
+def _expressions(string: str) -> list:
+    expr_strings = (s.strip() for s in string.splitlines())
+    return [expr(s) for s in expr_strings if s]
