@@ -131,7 +131,7 @@ class AirCargoProblem(Problem):
             e.g. 'FTTTFF'
         :return: list of Action objects
         """
-        # TODO implement
+        # I followed the example from example_have_cake.py, which was very clear.
         possible_actions = []
 
         kb = PropKB()
@@ -158,7 +158,7 @@ class AirCargoProblem(Problem):
         :param action: Action applied
         :return: resulting state after action
         """
-        # TODO implements
+        # I followed the example from example_have_cake.py, which was very clear.
         new_state = FluentState([], [])
         old_state = decode_state(state, self.state_map)
 
@@ -215,13 +215,7 @@ class AirCargoProblem(Problem):
         conditions by ignoring the preconditions required for an action to be
         executed.
         '''
-        # TODO implement (see Russell-Norvig Ed-3 10.2.3  or Russell-Norvig Ed-2 11.2)
-        # AIMA says an accurate heuristic can be achieved by ignoring the fact that some
-        # actions can undo the effects of others; so for a first iteration let's just track
-        # how many goals are achieved from action to action, without worrying about whether
-        # they're later undone by an action.
-        # Any single goal fluent can be achieved in one step. Furthermore, more than one
-        # could be achieved in a step, given the right action.
+        # See Russell-Norvig Ed-3 10.2.3  or Russell-Norvig Ed-2 11.2.
         start_state = node.state
         q = deque([(start_state, 0)])  # Queue of (state, action_count) pairs.
         visited = set()
