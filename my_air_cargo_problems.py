@@ -9,6 +9,7 @@ from lp_utils import (
 )
 from my_planning_graph import PlanningGraph
 import itertools as itt
+from collections import deque
 
 
 class AirCargoProblem(Problem):
@@ -47,11 +48,11 @@ class AirCargoProblem(Problem):
             list of Action objects
         '''
 
-        # TODO create concrete Action objects based on the domain action schema for: Load, Unload, and Fly
+        # Create concrete Action objects based on the domain action schema for: Load, Unload, and Fly
         # concrete actions definition: specific literal action that does not include variables as with the schema
         # for example, the action schema 'Load(c, p, a)' can represent the concrete actions 'Load(C1, P1, SFO)'
         # or 'Load(C2, P2, JFK)'.  The actions for the planning problem must be concrete because the problems in
-        # forward search and Planning Graphs must use Propositional Logic
+        # forward search and Planning Graphs must use Propositional Logic.
 
         def load_actions():
             '''Create all concrete Load actions and return a list
@@ -61,6 +62,7 @@ class AirCargoProblem(Problem):
             loads = []
 
             for c,p,a in itt.product(self.cargos, self.planes, self.airports):
+                action_expression = expr('Load({c}, {p}, {a})'.format(c=c, p=p, a=a))
                 precond_pos = _expressions('''
                     At({c}, {a})
                     At({p}, {a})
@@ -68,7 +70,6 @@ class AirCargoProblem(Problem):
                 precond_neg = []
                 effect_add = [expr("In({c}, {p})".format(c=c, p=p))]
                 effect_rem = [expr("At({c}, {a})".format(c=c, a=a))]
-                action_expression = expr('Load({c}, {p}, {a})'.format(c=c, p=p, a=a))
                 action = Action(action_expression,
                                 [precond_pos, precond_neg],
                                 [effect_add, effect_rem])
@@ -82,7 +83,21 @@ class AirCargoProblem(Problem):
             :return: list of Action objects
             '''
             unloads = []
-            # TODO create all Unload ground actions from the domain Unload action
+
+            for c,p,a in itt.product(self.cargos, self.planes, self.airports):
+                action_expression = expr('Unload({c}, {p}, {a})'.format(c=c, p=p, a=a))
+                precond_pos = _expressions('''
+                    In({c}, {p})
+                    At({p}, {a})
+                '''.format(c=c, p=p, a=a))
+                precond_neg = []
+                effect_add = [expr("At({c}, {a})".format(c=c, a=a))]
+                effect_rem = [expr("In({c}, {p})".format(c=c, p=p))]
+                action = Action(action_expression,
+                                [precond_pos, precond_neg],
+                                [effect_add, effect_rem])
+                unloads.append(action)
+
             return unloads
 
         def fly_actions():
@@ -118,6 +133,20 @@ class AirCargoProblem(Problem):
         """
         # TODO implement
         possible_actions = []
+
+        kb = PropKB()
+        kb.tell(decode_state(state, self.state_map).pos_sentence())
+        for action in self.actions_list:
+            is_possible = True
+            for clause in action.precond_pos:
+                if clause not in kb.clauses:
+                    is_possible = False
+            for clause in action.precond_neg:
+                if clause in kb.clauses:
+                    is_possible = False
+            if is_possible:
+                possible_actions.append(action)
+
         return possible_actions
 
     def result(self, state: str, action: Action):
@@ -129,8 +158,23 @@ class AirCargoProblem(Problem):
         :param action: Action applied
         :return: resulting state after action
         """
-        # TODO implement
+        # TODO implements
         new_state = FluentState([], [])
+        old_state = decode_state(state, self.state_map)
+
+        for fluent in old_state.pos:
+            if fluent not in action.effect_rem:
+                new_state.pos.append(fluent)
+        for fluent in action.effect_add:
+            if fluent not in new_state.pos:
+                new_state.pos.append(fluent)
+        for fluent in old_state.neg:
+            if fluent not in action.effect_add:
+                new_state.neg.append(fluent)
+        for fluent in action.effect_rem:
+            if fluent not in new_state.neg:
+                new_state.neg.append(fluent)
+
         return encode_state(new_state, self.state_map)
 
     def goal_test(self, state: str) -> bool:
@@ -141,10 +185,11 @@ class AirCargoProblem(Problem):
         """
         kb = PropKB()
         kb.tell(decode_state(state, self.state_map).pos_sentence())
-        for clause in self.goal:
-            if clause not in kb.clauses:
-                return False
-        return True
+        return all((clause in kb.clauses) for clause in self.goal)
+        # for clause in self.goal:
+        #     if clause not in kb.clauses:
+        #         return False
+        # return True
 
     def h_1(self, node: Node):
         # note that this is not a true heuristic
@@ -171,8 +216,35 @@ class AirCargoProblem(Problem):
         executed.
         '''
         # TODO implement (see Russell-Norvig Ed-3 10.2.3  or Russell-Norvig Ed-2 11.2)
-        count = 0
-        return count
+        # AIMA says an accurate heuristic can be achieved by ignoring the fact that some
+        # actions can undo the effects of others; so for a first iteration let's just track
+        # how many goals are achieved from action to action, without worrying about whether
+        # they're later undone by an action.
+        # Any single goal fluent can be achieved in one step. Furthermore, more than one
+        # could be achieved in a step, given the right action.
+        start_state = node.state
+        q = deque([(start_state, 0)])  # Queue of (state, action_count) pairs.
+        visited = set()
+        successors = lambda state: (self.result(state, action) for action in self.actions_list)
+        # The successors function is the key to this heuristic. Specifically, it uses `self.actions_list`
+        # instead of `self.actions(state)`, and therefore it considers all possible actions, rather
+        # than just the actions whose preconditions are satisfied by a state.
+
+        # Use breadth-first search to find the minimum number of actions to get from start state to goal.
+        while q:
+            state, action_count = q.popleft()
+
+            if self.goal_test(state):
+                return action_count
+
+            if state not in visited:
+                visited.add(state)
+
+                for state2 in successors(state):
+                    if state2 not in visited:
+                        q.append((state2, action_count+1))
+
+        return float('inf')
 
 
 def air_cargo_p1() -> AirCargoProblem:
