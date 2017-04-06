@@ -201,6 +201,7 @@ def mutexify(node1: PgNode, node2: PgNode):
 
 
 def connect(parent: PgNode, child: PgNode):
+    "Add child to parent.children and parent to child.parents."
     parent.children.add(child)
     child.parents.add(parent)
 
