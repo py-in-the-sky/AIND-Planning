@@ -2,12 +2,15 @@ from aimacode.logic import PropKB
 from aimacode.planning import Action
 from aimacode.search import (
     Node, Problem,
+    breadth_first_search, astar_search, depth_first_graph_search,
+    uniform_cost_search, greedy_best_first_graph_search,
 )
 from aimacode.utils import expr
 from lp_utils import (
     FluentState, encode_state, decode_state,
 )
 from my_planning_graph import PlanningGraph
+import run_search
 import itertools as itt
 from collections import deque
 
@@ -363,3 +366,48 @@ def air_cargo_p3() -> AirCargoProblem:
 def _expressions(string: str) -> list:
     expr_strings = (s.strip() for s in string.splitlines())
     return [expr(s) for s in expr_strings if s]
+
+
+def main():
+    indent = '  '
+    problem_functions = (air_cargo_p1, air_cargo_p2, air_cargo_p3)
+    # problem_functions = (air_cargo_p2,)
+
+    for i,p_fn in enumerate(problem_functions, 1):
+        print('************************************')
+        print("Problem {}: {}".format(i, p_fn.__name__))
+        print('************************************')
+        p = p_fn()
+        # print("Initial state for this problem is {}".format(p.initial))
+        # print("Actions for this domain are:")
+        # for a in p.actions_list:
+        #     print(indent,'{}{}'.format(a.name, a.args))
+        # print("Fluents in this problem are:")
+        # for f in p.state_map:
+        #     print(indent, '{}'.format(f))
+        # print("Goal requirement for this problem are:")
+        # for g in p.goal:
+        #     print(indent, '{}'.format(g))
+        # print()
+        # print("*** Breadth First Search")
+        # run_search.run_search(p, breadth_first_search)
+        # print("*** Depth First Search")
+        # run_search.run_search(p, depth_first_graph_search)
+        # print("*** Uniform Cost Search")
+        # run_search.run_search(p, uniform_cost_search)
+        # print("*** A-star null heuristic")
+        # run_search.run_search(p, astar_search, p.h_1)
+        # print("*** A-star ignore preconditions heuristic")
+        # run_search.run_search(p, astar_search, p.h_ignore_preconditions)
+        print("*** A-star levelsum heuristic")
+        run_search.run_search(p, astar_search, p.h_pg_levelsum)
+        # print("*** Greedy Best First Graph Search - null heuristic")
+        # run_search.run_search(p, greedy_best_first_graph_search, parameter=p.h_1)
+        # print("*** Greedy Best First Graph Search - ignore preconditions heuristic")
+        # run_search.run_search(p, greedy_best_first_graph_search, parameter=p.h_ignore_preconditions)
+        # print("*** Greedy Best First Graph Search - levelsum heuristic")
+        # run_search.run_search(p, greedy_best_first_graph_search, parameter=p.h_pg_levelsum)
+
+
+if __name__ == '__main__':
+    main()
