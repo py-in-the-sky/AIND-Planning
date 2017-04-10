@@ -10,7 +10,6 @@ from lp_utils import (
     FluentState, encode_state, decode_state,
 )
 from my_planning_graph import PlanningGraph
-import run_search
 import itertools as itt
 from collections import deque
 
@@ -219,29 +218,41 @@ class AirCargoProblem(Problem):
         executed.
         '''
         # See Russell-Norvig Ed-3 10.2.3  or Russell-Norvig Ed-2 11.2.
-        start_state = node.state
-        q = deque([(start_state, 0)])  # Queue of (state, action_count) pairs.
-        visited = set()
-        successors = lambda state: (self.result(state, action) for action in self.actions_list)
-        # The successors function is the key to this heuristic. Specifically, it uses `self.actions_list`
-        # instead of `self.actions(state)`, and therefore it considers all possible actions, rather
-        # than just the actions whose preconditions are satisfied by a state.
 
-        # Use breadth-first search to find the minimum number of actions to get from start state to goal.
-        while q:
-            state, action_count = q.popleft()
+        # With action_count, keep track of the number of actions it takes to transform
+        # current state into goal state.
+        action_count = 0
 
-            if self.goal_test(state):
+        # Initialize pending_goal_conditions, the set of all expressions that are true in
+        # the goal state but that are not yet true in our search state.
+        kb = PropKB()
+        kb.tell(decode_state(node.state, self.state_map).pos_sentence())
+        pending_goal_conditions = set(self.goal) - set(kb.clauses)  # E.g., {expr('At(C1, JFK)'), expr('At(C2, SFO)')}
+
+        # Greedily iterate over available actions until all conditions in pending_goal_conditions
+        # are fulfilled.
+        prioritized_actions = sorted(self.actions_list,
+                                     key=lambda action: len(pending_goal_conditions.intersection(action.effect_add)),
+                                     reverse=True)
+
+        # TODO: Instead of sorting actions just once, on each iteration, apply the action
+        # that's retrieved from `max(self.actions_list, key=lambda action: len(pending_goal_conditions.intersection(action.effect_add)))`
+        # and then discard this action from future consideration.
+        # Do this and run unit tests before testing h_ignore_preconditions from the run_search script.
+
+        for action in prioritized_actions:
+            goal_conditions_left = len(pending_goal_conditions)
+            pending_goal_conditions.difference_update(action.effect_add)
+
+            if len(pending_goal_conditions) < goal_conditions_left:
+                # The action fulfilled some pending goal conditions.
+                action_count += 1
+
+            if not pending_goal_conditions:
+                # All goal conditions fulfilled.
                 return action_count
 
-            if state not in visited:
-                visited.add(state)
-
-                for state2 in successors(state):
-                    if state2 not in visited:
-                        q.append((state2, action_count+1))
-
-        return float('inf')
+        return float('inf')  # Not all goal conditions could be fulfilled.
 
 
 def air_cargo_p1() -> AirCargoProblem:
@@ -366,48 +377,3 @@ def air_cargo_p3() -> AirCargoProblem:
 def _expressions(string: str) -> list:
     expr_strings = (s.strip() for s in string.splitlines())
     return [expr(s) for s in expr_strings if s]
-
-
-def main():
-    indent = '  '
-    problem_functions = (air_cargo_p1, air_cargo_p2, air_cargo_p3)
-    # problem_functions = (air_cargo_p2,)
-
-    for i,p_fn in enumerate(problem_functions, 1):
-        print('************************************')
-        print("Problem {}: {}".format(i, p_fn.__name__))
-        print('************************************')
-        p = p_fn()
-        # print("Initial state for this problem is {}".format(p.initial))
-        # print("Actions for this domain are:")
-        # for a in p.actions_list:
-        #     print(indent,'{}{}'.format(a.name, a.args))
-        # print("Fluents in this problem are:")
-        # for f in p.state_map:
-        #     print(indent, '{}'.format(f))
-        # print("Goal requirement for this problem are:")
-        # for g in p.goal:
-        #     print(indent, '{}'.format(g))
-        # print()
-        # print("*** Breadth First Search")
-        # run_search.run_search(p, breadth_first_search)
-        # print("*** Depth First Search")
-        # run_search.run_search(p, depth_first_graph_search)
-        # print("*** Uniform Cost Search")
-        # run_search.run_search(p, uniform_cost_search)
-        # print("*** A-star null heuristic")
-        # run_search.run_search(p, astar_search, p.h_1)
-        # print("*** A-star ignore preconditions heuristic")
-        # run_search.run_search(p, astar_search, p.h_ignore_preconditions)
-        print("*** A-star levelsum heuristic")
-        run_search.run_search(p, astar_search, p.h_pg_levelsum)
-        # print("*** Greedy Best First Graph Search - null heuristic")
-        # run_search.run_search(p, greedy_best_first_graph_search, parameter=p.h_1)
-        # print("*** Greedy Best First Graph Search - ignore preconditions heuristic")
-        # run_search.run_search(p, greedy_best_first_graph_search, parameter=p.h_ignore_preconditions)
-        # print("*** Greedy Best First Graph Search - levelsum heuristic")
-        # run_search.run_search(p, greedy_best_first_graph_search, parameter=p.h_pg_levelsum)
-
-
-if __name__ == '__main__':
-    main()
