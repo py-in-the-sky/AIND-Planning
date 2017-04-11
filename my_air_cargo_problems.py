@@ -11,7 +11,6 @@ from lp_utils import (
 )
 from my_planning_graph import PlanningGraph
 import itertools as itt
-from collections import deque
 
 
 class AirCargoProblem(Problem):
@@ -227,20 +226,17 @@ class AirCargoProblem(Problem):
         # the goal state but that are not yet true in our search state.
         kb = PropKB()
         kb.tell(decode_state(node.state, self.state_map).pos_sentence())
-        pending_goal_conditions = set(self.goal) - set(kb.clauses)  # E.g., {expr('At(C1, JFK)'), expr('At(C2, SFO)')}
+        pending_goal_conditions = set(self.goal) - set(kb.clauses)
+        # E.g., pending_goal_conditions = {expr('At(C1, JFK)'), expr('At(C2, SFO)')}
 
-        # Greedily iterate over available actions until all conditions in pending_goal_conditions
-        # are fulfilled.
-        prioritized_actions = sorted(self.actions_list,
-                                     key=lambda action: len(pending_goal_conditions.intersection(action.effect_add)),
-                                     reverse=True)
+        # Greedily iterate over available actions until all conditions in
+        # pending_goal_conditions are fulfilled.
+        actions = set(self.actions_list)
+        top_action = lambda action: len(pending_goal_conditions.intersection(action.effect_add))
 
-        # TODO: Instead of sorting actions just once, on each iteration, apply the action
-        # that's retrieved from `max(self.actions_list, key=lambda action: len(pending_goal_conditions.intersection(action.effect_add)))`
-        # and then discard this action from future consideration.
-        # Do this and run unit tests before testing h_ignore_preconditions from the run_search script.
-
-        for action in prioritized_actions:
+        while actions:
+            action = max(actions, key=top_action)
+            actions.remove(action)
             goal_conditions_left = len(pending_goal_conditions)
             pending_goal_conditions.difference_update(action.effect_add)
 
